@@ -276,8 +276,10 @@ def _resolve_minio_for_row(evidence_cfg: dict, row: dict, is_osa: bool,
     # For daily, we only need date. For hourly, we need both date and hour.
     # Nykaa daily OSA filenames are not based on platform_code, so we must skip direct fetch for it.
     is_nykaa_daily_osa = is_daily and is_osa and row.get("platform", "").lower() == "nykaa"
+    is_daily_osa = is_daily and is_osa
     can_direct_fetch = (field_val and date_s is not None and 
-                        (is_daily or hour_s is not None) and not is_nykaa_daily_osa)
+                        (is_daily or hour_s is not None) and not is_daily_osa) or is_nykaa_daily_osa
+
 
     if can_direct_fetch:
         if is_daily:
