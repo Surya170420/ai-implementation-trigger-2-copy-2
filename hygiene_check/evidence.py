@@ -281,7 +281,10 @@ def _resolve_minio_for_row(evidence_cfg: dict, row: dict, is_osa: bool,
 
     if can_direct_fetch:
         if is_daily:
-            object_name = f"{prefix}{field_val}_{date_s}.zip"
+            if is_nykaa_daily_osa:
+                object_name = f"{prefix}{field_val}_{date_s}_0.zip"
+            else:
+                object_name = f"{prefix}{field_val}_{date_s}.zip"
         else:
             object_name = f"{prefix}{field_val}_{date_s}_{hour_s}.zip"
         cache_key = f"raw::{object_name}"
