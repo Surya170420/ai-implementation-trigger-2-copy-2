@@ -1,0 +1,167 @@
+# Runtime parameters for hygiene-check. Same code, different config per env:
+# local testing uses docker/localhost Ollama + CSV fixtures; production points
+# base_url at the cluster DNS and data_source at the silver Iceberg tables.
+
+llm:
+  model:  gemma4:cloud       # correct Ollama Cloud tag (auth via OLLAMA_API_KEY) -- "gpt-oss-120b" is not a valid tag and will 404
+  base_url: https://ollama.com
+  retries: 2
+  timeout: 300                    # seconds; HTML-evidence prompts are large
+  # Soft cap on LLM calls for one pipeline run (2 calls per row/case:
+  # extract_columns + validate_holistically). Once hit, the run checkpoints
+  # already-completed verdicts and exits cleanly — re-run the same command
+  # to resume. null/omit = no cap. Set this against your ACTUAL provider
+  # quota (e.g. a 100-calls/day free tier -> keep this well under 100 so one
+  # run never exhausts the whole day's budget by itself).
+  max_calls_per_run: 200
+
+mcp:
+  mail: {
+        "infytrix-mailer": {
+            "transport": "stdio",
+            "command": "uv",
+            "args": ["run", "--with", "mcp[cli]", "mcp", "run", "ai_toolkit/mcp_server/mail_server.py"],
+        }
+    }
+    
+email:
+  recipients: "suryamani.kumar@infytrix.com,disha.shetty@infytrix.com,vinay.vishwakarma@infytrix.com,mahi.mistry@infytrix.com"
+  admin_recipients: "suryamani.kumar@infytrix.com"
+# Add this to your existing config.yaml
+
+scraping_repo:
+  # Token comes from the SCRAPING_REPO_TOKEN env var (see load_config in
+  # ai_toolkit/config.py) — never hardcode a PAT in this file. Rotate the
+  # previously-committed token (ghp_tSZ...) immediately; it was exposed here.
+  url: "https://${SCRAPING_REPO_TOKEN}@github.com/Infytrix-Ecom/scraping-repo.git"
+  local_dir: "./tmp/scraping-repo"                  # Where it will be cloned
+  script_map:
+    amazon_osa_hourly: "scraping_repository/amazon/india/osa_crawler_hourly_web.py"
+    amazon_osa_daily: "scraping_repository/amazon/india/osa_crawler_daily_web.py"
+    amazon_visibility: "scraping_repository/amazon/india/visibility_crawler_app.py"
+    flipkart_osa_hourly: "scraping_repository/flipkart/india/osa_flipkart_hourly_web.py"
+    flipkart_osa_daily: "scraping_repository/flipkart/india/osa_crawler_daily_web.py"
+    flipkart_visibility: "scraping_repository/flipkart/india/visibility_flipkart_web.py"
+    myntra_osa_hourly: "scraping_repository/myntra/india/osa_myntra_hourly_web.py"
+    myntra_osa_daily: "scraping_repository/myntra/india/osa_myntra_daily_web.py"
+    myntra_visibility: "scraping_repository/myntra/india/visibility_crawler_app.py"
+    nykaa_osa_hourly: "scraping_repository/nykaa/india/osa_nykaa_hourly_web.py"
+    nykaa_osa_daily: "scraping_repository/nykaa/india/osa_nykaa_daily_web.py"
+    nykaa_visibility: "scraping_repository/nykaa/india/visibility_crawler_app.py"
+    purplle_osa_hourly: "scraping_repository/purplle/india/osa_purplle_hourly_web.py"
+    purplle_visibility: "scraping_repository/purplle/india/visibility_crawler_app.py"
+    meesho_osa_hourly: "scraping_repository/meesho/india/osa_meesho_hourly_web.py"
+    meesho_visibility: "scraping_repository/meesho/india/visibility_crawler_app.py"
+
+
+
+data_source:
+  mode: trino                     # trino | csv_fixtures
+  lookback_hours: 4          # window = last N hours (or --date/--hours CLI)
+  lookback_date: null
+
+  trino:
+    host: "trino-cluster-02.infytrix.in"
+    port: 443
+    ssl: True
+    user_name: "admin"
+    catalog: "lakehouse"
+    schema: "silver"
+    
+
+  datasets:
+    - dataset: t_visibility_hourly
+      table: lakehouse.silver.t_visibility_hourly
+      platforms:                  # platform -> expectations file
+        Amazon: visibility/amazon.yaml
+        Flipkart: visibility/flipkart.yaml
+        Nykaa: visibility/nykaa.yaml
+        purplle: visibility/purplle.yaml
+        Myntra: visibility/myntra.yaml
+        Meesho: visibility/meesho.yaml
+      platform_ids:               # fallback when rows carry null platform_id
+        Amazon: 2b2c5687-6887-4f4c-9509-4abd7341b81e
+        Flipkart: 76cfb8ab-1616-4342-a43f-b5c22ff50201
+        Nykaa: f483c06d-fbd1-4682-8ab3-c28f035d8dc0
+        purplle: c4fd98ef-49c8-4abe-8c9c-f7aaf6fea2fa
+        Myntra: c8cd22e7-d593-41d6-b9c3-9bbbb2021ebe
+        Meesho: ad0ee520-786e-4909-a27f-8cea4c5cc995
+      evidence:
+        type: minio
+        bucket: lakehouse
+        match_field: keyword
+        prefix_template: "layer=bronze/blobstorage/table_name=t_visibility_hourly/platform_id={platform_id}/date_stamp={date_stamp}/hour_stamp={hour_stamp}/"
+
+    - dataset: t_osa_hourly
+      table: lakehouse.silver.t_osa_hourly
+      platforms:
+        Amazon: osa/amazon.yaml
+        Flipkart: osa/flipkart.yaml
+        Nykaa: osa/nykaa.yaml
+        purplle: osa/purplle.yaml 
+        Myntra: osa/myntra.yaml
+      platform_ids:
+        Amazon: 2b2c5687-6887-4f4c-9509-4abd7341b81e
+        Flipkart: 76cfb8ab-1616-4342-a43f-b5c22ff50201
+        Nykaa: f483c06d-fbd1-4682-8ab3-c28f035d8dc0
+        purplle: c4fd98ef-49c8-4abe-8c9c-f7aaf6fea2fa
+        Myntra: c8cd22e7-d593-41d6-b9c3-9bbbb2021ebe
+      evidence:
+        type: minio
+        bucket: lakehouse
+        match_field: platform_code
+        prefix_template: "layer=bronze/blobstorage/table_name=t_osa_hourly/platform_id={platform_id}/date_stamp={date_stamp}/hour_stamp={hour_stamp}/"
+
+    - dataset: t_osa_daily
+      table: lakehouse.silver.t_osa_daily
+      platforms:
+        Amazon: osa_daily/amazon.yaml
+        Flipkart: osa_daily/flipkart.yaml
+        Nykaa: osa_daily/nykaa.yaml
+      platform_ids:
+        Amazon: 2b2c5687-6887-4f4c-9509-4abd7341b81e
+        Flipkart: 76cfb8ab-1616-4342-a43f-b5c22ff50201
+        Nykaa: f483c06d-fbd1-4682-8ab3-c28f035d8dc0
+      evidence:
+        type: minio
+        bucket: lakehouse
+        match_field: platform_code
+        prefix_template_daily: "layer=bronze/blobstorage/table_name=t_osa_daily/platform_id = {platform_id}/date_stamp={date_stamp}/"
+        prefix_template_daily_nykaa: "layer=bronze/blobstorage/table_name=t_osa_daily/platform_id={platform_id}/date_stamp={date_stamp}/"
+
+  fixtures:                       # used when mode: csv_fixtures
+    - dataset: t_visibility_hourly
+      platform: Amazon
+      csv: sample/t_visibility_hourly-amazon.csv
+      expectations: visibility/amazon.yaml
+      html_dir: sample
+    - dataset: t_visibility_hourly
+      platform: Flipkart
+      csv: sample/t_visibility_hourly-flipkart.csv
+      expectations: visibility/flipkart.yaml
+      html_dir: sample
+    - dataset: t_osa_hourly
+      platform: Amazon
+      csv: sample/t_osa_hourly-amazon.csv
+      expectations: osa/amazon.yaml
+      html_dir: sample
+
+# Escalation policy — strict true-positive-only gate. A case reaches the
+# email iff the LLM verdict says true_positive: true at or above
+# min_confidence. Deliberately no other trigger (no floor on failed_share,
+# no recurrence, no auto-escalate on investigation error) — see
+# decide_escalation() in pipeline.py for the accepted tradeoff.
+# force_escalate_above/recur_after are no longer read for escalation
+# decisions; failed_share/recurrence are still computed and logged on every
+# case in report.json in case this policy is revisited.
+escalation:
+  min_confidence: 0.6
+  state_file: out/state.json
+
+output_dir: out
+
+daily_run_schedule:
+  # Hour in UTC (0-23) to run the daily datasets. 8 AM UTC is ~1:30 PM IST.
+  hour_utc: 8
+  # Set to true to run daily datasets on EVERY pipeline execution for testing purposes.
+  force_run_daily_for_testing: true

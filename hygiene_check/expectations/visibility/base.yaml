@@ -1,0 +1,182 @@
+# Rules true for t_visibility_hourly on EVERY platform.
+# Platform files (amazon.yaml, flipkart.yaml) extend this and add specifics.
+dataset: t_visibility_hourly
+crawl_key: [keyword, time_stamp]
+
+rules:
+  # -- pipeline/hardcoded columns: cheap sanity checks, no AI needed
+# ----------------------------------------------------------------------------------------------------
+  ## time_stamp
+  - id: timestamp_present
+    column: time_stamp
+    check: not_null
+    scope: row
+    severity: warn
+    on_fail: report_only
+    description: >
+      Every row must carry a crawl time_stamp. A missing time_stamp means the
+      row can't be placed in the hourly cycle it belongs to.
+# ----------------------------------------------------------------------------------------------------
+  ## platfrom_id
+# ----------------------------------------------------------------------------------------------------
+  ## platfrom
+  - id: platform_constant
+    column: platform
+    check: constant
+    params: {value: "{{ platform }}"}
+    scope: row
+    severity: error
+    on_fail: report_only
+    description: >
+      The platform column should always equal the platform this file is
+      configured for. Any other value means rows from a different platform
+      leaked into this dataset/file.
+# ----------------------------------------------------------------------------------------------------
+  ## keyword
+# ----------------------------------------------------------------------------------------------------
+  # -- per-row extraction quality
+# ------------------------------------------------------------------
+  ## platfrom_code
+  - id: platform_code_present
+    column: platform_code
+    check: not_null
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      Every row must have a platform_code. A null here means the
+      platform-specific product identifier failed to extract.
+# ----------------------------------------------------------------------------------------------------
+   ## product_name
+  - id: name_present
+    column: product_name
+    check: length
+    params: {min: 5}
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      Product name must be at least 5 characters. Anything shorter (or
+      blank) indicates the name xpath grabbed junk or nothing instead of
+      a real product title.
+# ----------------------------------------------------------------------------------------------------
+   ## sp
+  - id: sp_positive
+    column: sp
+    check: range
+    params: {min: 1}
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      Selling price (sp) must be at least 1. A zero, negative, or missing
+      selling price points to a broken price extraction rather than a
+      real product listing.
+
+  - id: sp_not_above_mrp
+    column: sp
+    check: compare
+    params: {expr: "sp <= mrp"}
+    when: "sp is not null and mrp is not null"
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      Selling price should never exceed MRP when both are present. sp > mrp
+      signals mismatched price fields were pulled from the page.
+# ----------------------------------------------------------------------------------------------------
+   ## mrp
+# ----------------------------------------------------------------------------------------------------
+   ## rating
+  - id: rating_bounds
+    column: rating
+    check: range
+    params: {min: 1, max: 5}
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      Rating must fall within the valid 1-5 star scale. Values outside
+      this range mean the rating xpath captured the wrong element.
+# ----------------------------------------------------------------------------------------------------
+   ## num_of_rating
+  - id: num_of_rating_not_null
+    column: num_of_rating
+    check: not_null
+    when: "rating is not null"
+    scope: row
+    severity: warn
+    on_fail: investigate
+    description: >
+      On a real results page a product showing a star rating always shows the
+      review count next to it. A rating without num_of_rating means the count
+      xpath missed while the rating xpath worked — partial extraction, not
+      marketplace behavior.
+# ----------------------------------------------------------------------------------------------------
+   ## tag
+# ----------------------------------------------------------------------------------------------------
+   ## deal
+# ----------------------------------------------------------------------------------------------------
+   ## product_image_url
+# ----------------------------------------------------------------------------------------------------
+   ## absolute_rank
+  - id: rank_present
+    column: absolute_rank
+    check: not_null
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      Every row must have an absolute_rank (its position on the results
+      page). A null here means the ranking logic failed to assign a
+      position to this product.
+# ----------------------------------------------------------------------------------------------------
+   ## realative_rank
+  - id: relative_rank_not_null
+    column: relative_rank
+    check: not_null
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      Every row must have a relative_rank (its position within its own
+      section/tile-type). A null here means the relative ranking logic
+      failed to assign a position to this product.
+# ----------------------------------------------------------------------------------------------------
+   ## additional_data
+ 
+# ----------------------------------------------------------------------------------------------------
+   ## product_type
+# ----------------------------------------------------------------------------------------------------
+   ## campaign_id
+# ----------------------------------------------------------------------------------------------------
+   ## date_stamp
+# ----------------------------------------------------------------------------------------------------
+   ## hour_stamp
+# ----------------------------------------------------------------------------------------------------
+
+
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  # -- per-crawl structure
+#   - id: rank_contiguous
+#     column: absolute_rank
+#     check: contiguous
+#     scope: crawl
+#     severity: error
+#     on_fail: investigate
+#     description: >
+#       Absolute ranks within a single crawl should form an unbroken sequence
+#       (1, 2, 3, ...) with no gaps or duplicates. Gaps suggest rows were
+#       dropped or skipped during the crawl.
+#   - id: min_results
+#     check: row_count_min
+#     params: {min: 10}
+#     scope: crawl
+#     severity: warn
+#     on_fail: investigate
+#     description: >
+#       Each crawl should return at least 10 results. Fewer than that
+#       suggests the crawl was truncated or the page failed to load fully.
+
+
+# if product type SB, SBV, SP then campaign should not be null

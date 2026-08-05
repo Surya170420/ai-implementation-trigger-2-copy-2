@@ -1,0 +1,136 @@
+dataset: t_osa_daily
+crawl_key: [keyword, time_stamp]
+
+rules:
+  - id: platform_constant
+    column: platform
+    check: constant
+    params: {value: "{{ platform }}"}
+    scope: row
+    severity: error
+    on_fail: report_only
+    description: >
+      The platform column should always equal the platform this file is
+      configured for. Any other value means rows from a different platform
+      leaked into this dataset/file.
+
+
+  - id: code_present
+    column: platform_code
+    check: not_null
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      Every row must have a platform_code, since OSA crawls are keyed off
+      a known list of product codes. A null here means the code itself
+      failed to extract, not that stock is unavailable.
+
+  - id: stock_status_valid
+    column: stock_status
+    check: allowed_values
+    params: {values: ["In Stock", "Out of Stock", "Currently unavailable"]}
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      stock_status must be one of the three known values and similar.
+
+# In-stock rows must carry commercial data
+  - id: sp_null_when_instock
+    column: sp
+    check: not_null
+    when: "stock_status == 'In Stock'"
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      An In Stock product is listed for sale and must show a selling
+      price. A null sp on an In Stock row means the price xpath failed
+      to extract, not that the price is genuinely absent.
+
+  - id: sp_positive
+    column: sp
+    check: range
+    params: {min: 1}
+    when: "stock_status == 'In Stock'"
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      Selling price on an In Stock row must be at least 1. A zero or
+      negative value points to a broken price extraction rather than a
+      real price.
+
+  - id: sp_not_above_mrp
+    column: sp
+    check: compare
+    params: {expr: "sp <= mrp"}
+    when: "sp is not null and mrp is not null"
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      Selling price should never exceed MRP when both are present. 
+
+  - id: rating_bounds
+    column: rating
+    check: range
+    params: {min: 1, max: 5}
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      Rating must fall within the valid 1-5 star scale.
+
+  - id: delivery_days_sane
+    column: delivery_days
+    check: range
+    params: {min: 0, max: 60}
+    scope: row
+    severity: warn
+    on_fail: report_only
+    description: >
+      Delivery days should fall within a realistic 0-60 day window.
+
+# A crawl that is mostly Out of Stock smells like a blocked/captcha page,
+# not real availability -> AI verifies against the raw HTML.
+#   - id: oos_above_80
+#     column: stock_status
+#     check: share_max
+#     params: {value: "Out of Stock", max_share: 0.8}
+#     scope: crawl
+#     severity: error
+#     on_fail: investigate  # to see
+#     description: >
+#       Out of Stock is expected for some codes in a multi-code OSA crawl,
+#       but if more than 80% of a crawl's rows come back Out of Stock, that
+#       looks like a blocked or captcha page rather than genuine
+#       marketplace availability.
+
+# if rating present num of rating should not be null
+# seller should not be null.
+
+  - id: seller_not_null
+    column: seller
+    check: not_null
+    scope: row
+    severity: warn
+    on_fail: report_only
+    description: >
+      An In Stock (or listed) product normally shows a seller name. A
+      null seller suggests the seller xpath missed rather than the
+      listing genuinely having no seller.
+
+  - id: num_of_rating_not_null
+    column: num_of_rating
+    check: not_null
+    when: "rating is not null"
+    scope: row
+    severity: warn
+    on_fail: investigate
+    description: >
+      On a real results page a product showing a star rating always shows the
+      review count next to it. A rating without num_of_rating means the count
+      xpath missed while the rating xpath worked — partial extraction, not
+      marketplace behavior.

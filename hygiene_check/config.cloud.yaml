@@ -1,0 +1,107 @@
+# Runtime parameters for hygiene-check. Same code, different config per env:
+# local testing uses docker/localhost Ollama + CSV fixtures; production points
+# base_url at the cluster DNS and data_source at the silver Iceberg tables.
+
+# Runtime parameters for hygiene-check — Ollama CLOUD variant.
+# Same code as config.local.yaml, only the llm: block differs: points at
+# ollama.com's hosted models instead of a local Ollama server.
+#
+# Setup:
+#   1. Get an API key: ollama.com -> account settings -> API Keys
+#   2. export OLLAMA_API_KEY="<your key>"        (never put it in this file)
+#   3. python -m hygiene_check.pipeline --config hygiene_check/config.cloud.yaml
+#
+# ai_toolkit/llm.py now calls the ollama Python SDK directly (not litellm),
+# so `model` here is a BARE Ollama model name — no "ollama/" or
+# "ollama_chat/" prefix. The SDK passes whatever string you put here
+# straight to Ollama's API with no stripping, so a leftover litellm-style
+# prefix will 404 as "model not found", not silently work.
+# api_key/base_url fall back to OLLAMA_API_KEY / OLLAMA_BASE_URL env vars
+# if not set here — env vars are still the preferred way to keep the key
+# out of this file.
+
+llm:
+  model: gpt-oss:120b-cloud        # default cloud model, exposed via OLLAMA_API_KEY -- swap for another ollama.com catalog model if needed
+  base_url: https://ollama.com
+  retries: 2
+  timeout: 300                    # seconds; HTML-evidence prompts are large
+  max_calls_per_run: 20            # keep well under your ollama.com session/weekly quota
+
+mcp:
+  mail: {
+        "infytrix-mailer": {
+            "transport": "stdio",
+            "command": "uv",
+            "args": ["run", "--with", "mcp[cli]", "mcp", "run", "ai_toolkit/mcp_server/mail_server.py"],
+        }
+    }
+    
+email:
+  recipients: "suryamani.kumar@infytrix.com" # disha.shetty@infytrix.com,vinay.vishwakarma@infytrix.com,mahi.mistry@infytrix.com"
+# Add this to your existing config.yaml
+
+scraping_repo:
+  # Token comes from the SCRAPING_REPO_TOKEN env var — never hardcode a PAT
+  # here. Rotate the previously-committed token (ghp_tSZ...) immediately.
+  url: "https://${SCRAPING_REPO_TOKEN}@github.com/Infytrix-Ecom/scraping-repo.git"
+  local_dir: "./tmp/scraping-repo"                  # Where it will be cloned
+  script_map:
+    amazon_osa_hourly: "scraping_repository/amazon/india/osa_crawler_hourly_web.py"
+    amazon_osa_daily: "scraping_repository/amazon/india/osa_crawler_daily_web.py"
+    amazon_visibility: "scraping_repository/amazon/india/visibility_crawler_app.py"
+    flipkart_osa_hourly: "scraping_repository/flipkart/india/osa_flipkart_hourly_web.py"
+    flipkart_osa_daily: "scraping_repository/flipkart/india/osa_crawler_daily_web.py"
+    flipkart_visibility: "scraping_repository/flipkart/india/visibility_flipkart_web.py"
+    myntra_osa_hourly: "scraping_repository/myntra/india/osa_myntra_hourly_web.py"
+    myntra_osa_daily: "scraping_repository/myntra/india/osa_myntra_daily_web.py"
+    myntra_visibility: "scraping_repository/myntra/india/visibility_crawler_app.py"
+    nykaa_osa_hourly: "scraping_repository/nykaa/india/osa_nykaa_hourly_web.py"
+    nykaa_osa_daily: "scraping_repository/nykaa/india/osa_nykaa_daily_web.py"
+    nykaa_visibility: "scraping_repository/nykaa/india/visibility_crawler_app.py"
+    purplle_osa_hourly: "scraping_repository/purplle/india/osa_purplle_hourly_web.py"
+    purplle_visibility: "scraping_repository/purplle/india/visibility_crawler_app.py"
+    meesho_osa_hourly: "scraping_repository/meesho/india/osa_meesho_hourly_web.py"
+    meesho_visibility: "scraping_repository/meesho/india/visibility_crawler_app.py"
+
+
+
+data_source:
+  mode: csv_fixtures                     # trino | csv_fixtures
+  lookback_hours: 4            # window = last N hours (or --date/--hours CLI)
+  lookback_date: 
+
+  trino:
+    host: "trino-cluster-02.infytrix.in"
+    port: 443
+    ssl: True
+    user_name: "admin"
+    catalog: "lakehouse"
+    schema: "silver"
+    
+  fixtures:                       # used when mode: csv_fixtures
+    - dataset: t_visibility_hourly
+      platform: Amazon
+      csv: sample/t_visibility_hourly-amazon.csv
+      expectations: visibility/amazon.yaml
+      html_dir: sample
+    - dataset: t_visibility_hourly
+      platform: Flipkart
+      csv: sample/t_visibility_hourly-flipkart.csv
+      expectations: visibility/flipkart.yaml
+      html_dir: sample
+    - dataset: t_osa_hourly
+      platform: Amazon
+      csv: sample/t_osa_hourly-amazon.csv
+      expectations: osa/amazon.yaml
+      html_dir: sample
+
+# Escalation policy — strict true-positive-only gate. A case reaches the
+# email iff the LLM verdict says true_positive: true at or above
+# min_confidence. Deliberately no other trigger (no floor on failed_share,
+# no recurrence, no auto-escalate on investigation error) — see
+# decide_escalation() in pipeline.py for the accepted tradeoff.
+escalation:
+  min_confidence: 0.5
+  state_file: out/state.json
+
+output_dir: out

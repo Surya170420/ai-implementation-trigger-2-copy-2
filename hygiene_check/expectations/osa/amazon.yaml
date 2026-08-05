@@ -1,0 +1,7 @@
+extends: osa/base.yaml
+platform: Amazon
+
+rules:
+  - {id: asin_format, column: platform_code, check: regex,
+     params: {pattern: "^B0[A-Z0-9]{8}$"}, scope: row, severity: error, on_fail: investigate}  # books platform code is numeric "8194790832"
+    

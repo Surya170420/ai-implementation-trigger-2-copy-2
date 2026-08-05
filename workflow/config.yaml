@@ -1,0 +1,30 @@
+llm:
+  provider: ollama
+  model: qwen3:8b
+  api_key: null
+  base_url: http://localhost:11434/v1
+
+  mcp_servers:
+    infytrix-mailer:
+      transport: stdio
+      command: uv
+      args:
+        - run
+        - --with
+        - mcp[cli]
+        - mcp
+        - run
+        - ai_toolkit/mcp_server/servers/mail_server.py
+
+    tavily-search:
+      transport: stdio
+      command: uv
+      args:
+        - run
+        - --with
+        - mcp[cli]
+        - mcp
+        - run
+        - ai_toolkit/mcp_server/servers/websearch_server.py
+      env:
+        TAVILY_API_KEY: "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"

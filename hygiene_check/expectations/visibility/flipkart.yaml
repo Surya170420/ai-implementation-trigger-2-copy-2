@@ -1,0 +1,29 @@
+extends: visibility/base.yaml
+platform: Flipkart
+
+rules:
+#   - id: fsn_format
+#     column: platform_code
+#     check: regex
+#     params: {pattern: "^[A-Z0-9]{16}$"}
+#     scope: row
+#     severity: error
+#     on_fail: investigate
+#     description: >
+#       Flipkart's platform_code (FSN) always follows the pattern of exactly
+#       16 uppercase alphanumeric characters. Anything that doesn't match
+#       means the FSN xpath grabbed the wrong element or malformed text.
+
+  - id: image_diversity
+    column: product_image_url
+    check: share_max
+    params: {max_share: 0.5}
+    scope: crawl
+    severity: error
+    on_fail: investigate
+    description: >
+      Different products always have different image URLs on a real results
+      page. One identical URL repeated across more than half of a crawl's
+      products means extraction happened before real images loaded (a
+      placeholder was captured) or the image xpath drifted — never genuine
+      marketplace data.

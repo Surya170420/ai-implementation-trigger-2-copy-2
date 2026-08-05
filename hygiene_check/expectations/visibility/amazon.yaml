@@ -1,0 +1,80 @@
+extends: visibility/base.yaml
+platform: Amazon
+
+rules:
+#   - id: asin_format
+#     column: platform_code
+#     check: regex
+#     params: {pattern: "^B0[A-Z0-9]{8}$"}
+#     scope: row
+#     severity: error
+#     on_fail: investigate
+#     description: >
+#       Amazon's platform_code (ASIN) always follows the pattern B0 followed
+#       by 8 alphanumeric characters. Anything that doesn't match means the
+#       ASIN xpath grabbed the wrong element or malformed text.
+
+# A .svg image URL is Amazon's lazy-load placeholder, not a product image.
+# - id: image_not_placeholder
+#   column: product_image_url
+#   check: regex
+#   params: {pattern: '\.(?:jpg|jpeg|png|webp)'}
+#   scope: row
+#   severity: warn
+#   on_fail: report_only
+#   description: >
+#     A real product image URL ends in a raster image extension. A .svg (or
+#     any non-image-extension) URL is Amazon's lazy-load placeholder graphic,
+#     captured before the actual product image loaded.
+
+# The batch-level version: if one URL dominates a crawl, extraction happened
+# before images loaded -> worth an AI look at the raw HTML.
+#   - id: image_diversity
+#     column: product_image_url
+#     check: share_max
+#     params: {max_share: 0.5}
+#     scope: crawl
+#     severity: error
+#     on_fail: investigate
+#     description: >
+#       Different products always have different image URLs on a real results
+#       page. One IDENTICAL url repeated across many products means the scraper
+#       captured a lazy-loading placeholder (typically a .svg) before real
+#       images loaded, or the image xpath drifted. It is never genuine
+#       marketplace data.
+
+  - id: relative_rank_must_not_null
+    column: relative_rank
+    check: not_null
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      Every Amazon row must have a relative_rank. A null here means the
+      relative ranking logic failed to assign this product a position
+      within its section/tile-type.
+
+  - id: campaign_id_not_null
+    column: campaign_id
+    check: not_null
+    when: 'product_type in ["SB", "SD", "SBV"]'
+    scope: row
+    severity: error
+    on_fail: investigate
+    description: >
+      Sponsored Ads types (SB, SD, SBV) are ads and always carry a
+      campaign_id on Amazon. A null campaign_id on one of these rows means
+      the campaign/ad-metadata extraction failed, not that the ad has no
+      campaign.
+
+  # - id: sponsored_product_types_complete
+  #   column: product_type
+  #   check: contains_all
+  #   value: ["SP", "SB", "SBV", "SD"]
+  #   scope: table
+  #   severity: error
+  #   on_fail: investigate
+  #   description: >
+  #     Amazon sponsored ads are expected to include all supported product types
+  #     (SP, SB, SBV, and SD). If any expected product type is absent from the
+  #     dataset, it would be missing type error.

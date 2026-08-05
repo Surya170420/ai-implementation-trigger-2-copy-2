@@ -1,0 +1,8 @@
+__pycache__/
+*.egg-info/
+out/
+llm_calls.jsonl
+.DS_Store
+.env
+tmp/
+*.env

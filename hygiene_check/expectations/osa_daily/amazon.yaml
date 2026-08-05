@@ -1,0 +1,2 @@
+extends: osa_daily/base.yaml
+platform: Amazon
