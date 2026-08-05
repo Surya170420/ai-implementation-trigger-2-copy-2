@@ -28,7 +28,7 @@ class BudgetExceeded(Exception):
 
 
 _RATE_LIMIT_MARKERS = (
-    "rate limit", "ratelimiterror", "quota", "429",
+    "rate limit", "ratelimiterror", "quota", "429", "unauthorized", "401",
     "insufficient_quota", "resource_exhausted",
 )
 

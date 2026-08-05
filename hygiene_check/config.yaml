@@ -1,10 +1,17 @@
 # Runtime parameters for hygiene-check. Same code, different config per env:
 # local testing uses docker/localhost Ollama + CSV fixtures; production points
 # base_url at the cluster DNS and data_source at the silver Iceberg tables.
-
 llm:
-  model:  gemma4:cloud       # correct Ollama Cloud tag (auth via OLLAMA_API_KEY) -- "gpt-oss-120b" is not a valid tag and will 404
-  base_url: https://ollama.com
+  # List of LLM providers to try in order. The pipeline will fall back to the
+  # next provider on rate-limit or authentication errors. API keys are sourced
+  # from environment variables (see ai_toolkit/config.py).
+  providers:
+    - model: gemma4:cloud
+      base_url: https://ollama.com
+      api_key: ${OLLAMA_API_KEY_1}
+    - model: gemma4:cloud
+      base_url: https://ollama.com
+      api_key: ${OLLAMA_API_KEY_2}
   retries: 2
   timeout: 300                    # seconds; HTML-evidence prompts are large
   # Soft cap on LLM calls for one pipeline run (2 calls per row/case:
@@ -164,4 +171,4 @@ daily_run_schedule:
   # Hour in UTC (0-23) to run the daily datasets. 8 AM UTC is ~1:30 PM IST.
   hour_utc: 8
   # Set to true to run daily datasets on EVERY pipeline execution for testing purposes.
-  force_run_daily_for_testing: true
+  force_run_daily_for_testing: false

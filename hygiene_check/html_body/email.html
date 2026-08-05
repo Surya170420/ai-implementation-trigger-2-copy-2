@@ -41,11 +41,11 @@
     
     <div class="stats-container">
         <div class="stat-box">
-            <div class="stat-value">2026-08-04</div>
+            <div class="stat-value">2026-08-05</div>
             <div class="stat-label">Run Date</div>
         </div>
         <div class="stat-box">
-            <div class="stat-value"></div>
+            <div class="stat-value">(13, 16)</div>
             <div class="stat-label">Time Window</div>
         </div>
         <div class="stat-box">
@@ -53,11 +53,11 @@
             <div class="stat-label">Model</div>
         </div>
         <div class="stat-box">
-            <div class="stat-value" style="font-size:13px; font-family:'Consolas','Courier New',monospace;">20260805T065823Z-bcda8ade</div>
+            <div class="stat-value" style="font-size:13px; font-family:'Consolas','Courier New',monospace;">20260805T111419Z-d27ec005</div>
             <div class="stat-label">Run ID</div>
         </div>
         <div class="stat-box">
-            <div class="stat-value" style="color: #dc2626;">2</div>
+            <div class="stat-value" style="color: #dc2626;">1</div>
             <div class="stat-label">Actionable Issues</div>
         </div>
     </div>
@@ -80,73 +80,38 @@
         <tr>
             <td><b>1</b></td>
             <td>
-                <span class="badge badge-blue">t_osa_daily</span><br>
-                Unknown | <b>stock_status_valid</b>
+                <span class="badge badge-blue">t_visibility_hourly</span><br>
+                Unknown | <b>campaign_id_not_null</b>
             </td>
-            <td style="color:#64748b; font-size:13px;">stock_status</td>
-            <td style="font-weight:bold; color:#ef4444;">857</td>
-            <td><span class="badge badge-red">100.00%</span></td>
-            <td>unknown</td>
-        </tr>
-        
-        <tr>
-            <td><b>2</b></td>
-            <td>
-                <span class="badge badge-blue">t_osa_daily</span><br>
-                Unknown | <b>stock_status_valid</b>
-            </td>
-            <td style="color:#64748b; font-size:13px;">stock_status</td>
-            <td style="font-weight:bold; color:#ef4444;">1,617</td>
-            <td><span class="badge badge-red">99.90%</span></td>
+            <td style="color:#64748b; font-size:13px;">campaign_id</td>
+            <td style="font-weight:bold; color:#ef4444;">35</td>
+            <td><span class="badge badge-red">0.00%</span></td>
             <td>unknown</td>
         </tr>
         </table><h3 style="color: #334155; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-top:40px;">Deep Dive Details</h3>
         <div class="issue-card">
             <div class="issue-header">
-                <h2>Issue #1: stock_status_valid</h2>
+                <h2>Issue #1: campaign_id_not_null</h2>
             </div>
             <div class="issue-body">
                 
                 <h4 style="margin:0 0 10px 0; color:#475569;">Diagnostic SQL Query</h4>
-                <div class="sql-container" style="line-height: 1.6;">SELECT * <br>FROM lakehouse.silver.t_osa_daily <br>WHERE platform = &#x27;Amazon&#x27; <br>&nbsp;&nbsp;&nbsp;&nbsp;AND date_stamp = DATE &#x27;2026-08-04&#x27; <br>&nbsp;&nbsp;&nbsp;&nbsp;AND hour_stamp BETWEEN 0 <br>&nbsp;&nbsp;&nbsp;&nbsp;AND 23 <br>&nbsp;&nbsp;&nbsp;&nbsp;AND (stock_status NOT IN (&#x27;In Stock&#x27;, &#x27;Out of Stock&#x27;, &#x27;Currently unavailable&#x27;) <br>&nbsp;&nbsp;&nbsp;&nbsp;OR stock_status IS NULL);</div>
+                <div class="sql-container" style="line-height: 1.6;">SELECT * <br>FROM lakehouse.silver.t_visibility_hourly <br>WHERE platform = &#x27;Amazon&#x27; <br>&nbsp;&nbsp;&nbsp;&nbsp;AND date_stamp = DATE &#x27;2026-08-05&#x27; <br>&nbsp;&nbsp;&nbsp;&nbsp;AND hour_stamp BETWEEN 13 <br>&nbsp;&nbsp;&nbsp;&nbsp;AND 16 <br>&nbsp;&nbsp;&nbsp;&nbsp;AND product_type IN (&#x27;SP&#x27;, &#x27;SB&#x27;, &#x27;SD&#x27;, &#x27;SBV&#x27;) <br>&nbsp;&nbsp;&nbsp;&nbsp;AND campaign_id IS NULL;</div>
 
                 <table class="info-table" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-                    <tr><td>Platform / Table</td><td><b></b> / t_osa_daily</td></tr>
-                    <tr><td>Affected Column(s)</td><td>stock_status</td></tr>
+                    <tr><td>Platform / Table</td><td><b></b> / t_visibility_hourly</td></tr>
+                    <tr><td>Affected Column(s)</td><td>campaign_id</td></tr>
                     <tr><td>Reported Severity</td><td><span class="badge badge-gray">error</span></td></tr>
                     <tr><td>Investigated By</td><td>gemma4:cloud</td></tr>
-                    <tr><td>Failed Rows</td><td style="color: #dc2626; font-weight: bold;">857</td></tr>
-                    <tr><td>Failed Share</td><td>100.00%</td></tr>
-                    <tr><td>Summary Message</td><td style="color: #475569;"><i>Extraction rule (Type A). The focus column &#x27;stock_status&#x27; is completely missing from the provided row context, meaning there is no HTML or stored value to compare. Due to the evidence sufficiency gate, the cause must be unknown.</i></td></tr>
+                    <tr><td>Failed Rows</td><td style="color: #dc2626; font-weight: bold;">35</td></tr>
+                    <tr><td>Failed Share</td><td>0.00%</td></tr>
+                    <tr><td>Summary Message</td><td style="color: #475569;"><i>Logical/business rule (Type B). The focus column &#x27;campaign_id&#x27; is completely missing from the provided row context, meaning there is no HTML value to evaluate against the rule. Per the evidence sufficiency gate, this results in a false positive with cause &#x27;unknown&#x27;.</i></td></tr>
                 </table>
         
             <div class="alert-box alert-warning">
                 <b>🔍 Root Cause:</b> unknown <span style='color:#b45309; font-size:12px;'>(Confidence: 50%)</span>
             </div>
-            </div></div>
-        <div class="issue-card">
-            <div class="issue-header">
-                <h2>Issue #2: stock_status_valid</h2>
-            </div>
-            <div class="issue-body">
-                
-                <h4 style="margin:0 0 10px 0; color:#475569;">Diagnostic SQL Query</h4>
-                <div class="sql-container" style="line-height: 1.6;">SELECT * <br>FROM lakehouse.silver.t_osa_daily <br>WHERE platform = &#x27;Amazon&#x27; <br>&nbsp;&nbsp;&nbsp;&nbsp;AND date_stamp = DATE &#x27;2026-08-04&#x27; <br>&nbsp;&nbsp;&nbsp;&nbsp;AND hour_stamp BETWEEN 0 <br>&nbsp;&nbsp;&nbsp;&nbsp;AND 23 <br>&nbsp;&nbsp;&nbsp;&nbsp;AND (stock_status NOT IN (&#x27;In Stock&#x27;, &#x27;Out of Stock&#x27;, &#x27;Currently unavailable&#x27;) <br>&nbsp;&nbsp;&nbsp;&nbsp;OR stock_status IS NULL);</div>
-
-                <table class="info-table" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-                    <tr><td>Platform / Table</td><td><b></b> / t_osa_daily</td></tr>
-                    <tr><td>Affected Column(s)</td><td>stock_status</td></tr>
-                    <tr><td>Reported Severity</td><td><span class="badge badge-gray">error</span></td></tr>
-                    <tr><td>Investigated By</td><td>gemma4:cloud</td></tr>
-                    <tr><td>Failed Rows</td><td style="color: #dc2626; font-weight: bold;">1,617</td></tr>
-                    <tr><td>Failed Share</td><td>99.90%</td></tr>
-                    <tr><td>Summary Message</td><td style="color: #475569;"><i>Extraction rule (Type A). The focus_column &#x27;stock_status&#x27; is completely missing from the provided row context, meaning there is no html_value or real_value to compare. Due to the lack of evidence, the cause is unknown per the evidence sufficiency gate.</i></td></tr>
-                </table>
-        
-            <div class="alert-box alert-warning">
-                <b>🔍 Root Cause:</b> unknown <span style='color:#b45309; font-size:12px;'>(Confidence: 50%)</span>
-            </div>
-            </div></div>
+            <h4 style='margin: 15px 0 5px 0; color:#475569;'>Affected Crawls (17 total, showing up to 8)</h4><ul style='margin-top:5px; color:#475569; font-size:14px;'><li>+beardo +hair +removal</li><li>+hair +brush +straightener</li><li>baby coconut oil for massage</li><li>bamboo comb</li><li>castrol oil for hair</li><li>deep cleansing facial lotion</li><li>face brightening face wash</li><li>face wash for dry skin</li></ul></div></div>
         </div> <!-- End content -->
     </div> <!-- End container -->
     </body>

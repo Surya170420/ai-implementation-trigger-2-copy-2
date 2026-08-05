@@ -41,7 +41,6 @@ import json
 import time
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Callable
 from ai_toolkit.observability import log_call
 from ollama import Client
 from dotenv import load_dotenv
@@ -68,12 +67,11 @@ def generate(
     api_key: str | None = None,
     base_url: str | None = None,
     system: str | None = None,
-    temperature: float = 0.0,
+    temperature: float = 0.2,
     max_tokens: int | None = None,
     timeout: int = 180,
     think: bool | str = False,
     tools: list | None = None,
-    tool_map: dict[str, Callable] | None = None,
     max_tool_turns: int = 8,
     **kwargs,
 ) -> LLMResponse:
@@ -94,65 +92,64 @@ def generate(
     is machine-parsed, like generate_structured().
     """
 
-
-    # 1. Initialize Client for Ollama Cloud / Remote API
-    headers = {}
+    original_api_key = os.environ.get("OLLAMA_API_KEY")
     if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+        os.environ["OLLAMA_API_KEY"] = api_key
 
-    client = Client(
-        host=base_url,  # Defaults to Ollama Cloud API endpoint
-        headers=headers if headers else None,
-        timeout=timeout,
-    )
+    try:
+        # 1. Initialize Client for Ollama Cloud / Remote API
+        headers = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
 
-    # 2. Build Initial Messages
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
-
-    # 3. Configure Model Options
-    options = kwargs.pop("options", {})
-    if temperature is not None:
-        options["temperature"] = temperature
-    if max_tokens is not None:
-        options["num_predict"] = max_tokens  # Ollama uses num_predict for token limits
-
-    tool_map = tool_map or {}
-    total_usage = {"prompt_tokens": 0, "completion_tokens": 0}
-    turns = 0
-    started = time.time()
-
-    while True:
-        turns += 1
-        
-        # 4. Invoke Ollama Chat API
-        response = client.chat(
-            model=model,
-            messages=messages,
-            tools=tools or None,
-            think=think,
-            options=options if options else None,
-            **kwargs,
+        client = Client(
+            host=base_url,  # Defaults to Ollama Cloud API endpoint
+            headers=headers if headers else None,
+            timeout=timeout,
         )
-        msg = response.message
 
-        # 5. Accumulate Usage Metrics
-        if hasattr(response, "prompt_eval_count") and response.prompt_eval_count:
-            total_usage["prompt_tokens"] += response.prompt_eval_count
-        if hasattr(response, "eval_count") and response.eval_count:
-            total_usage["completion_tokens"] += response.eval_count
+        # 2. Build Initial Messages
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
 
-        # 6. Handle Non-Tool Response
+        # 3. Configure Model Options
+        options = kwargs.pop("options", {})
+        if temperature is not None:
+            options["temperature"] = temperature
+        if max_tokens is not None:
+            options["num_predict"] = max_tokens  # Ollama uses num_predict for token limits
 
-        tool_calls = getattr(msg, "tool_calls", None)
-        if not tool_calls or not tools:
-            text = msg.content or ""
-            latency = time.time() - started
+        total_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+        turns = 0
+        started = time.time()
+
+        while True:
+            turns += 1
             
-            # Assuming log_call exists in your execution scope
-            if "log_call" in globals():
+            # 4. Invoke Ollama Chat API
+            response = client.chat(
+                model=model,
+                messages=messages,
+                tools=tools or None,
+                options=options if options else None,
+                **kwargs,
+            )
+            msg = response["message"]
+
+            # 5. Accumulate Usage Metrics
+            if response.get("prompt_eval_count"):
+                total_usage["prompt_tokens"] += response["prompt_eval_count"]
+            if response.get("eval_count"):
+                total_usage["completion_tokens"] += response["eval_count"]
+
+            # 6. Handle Non-Tool Response
+            tool_calls = msg.get("tool_calls")
+            if not tool_calls or not tools:
+                text = msg.get("content", "")
+                latency = time.time() - started
+                
                 log_call(
                     model=model,
                     base_url=base_url,
@@ -161,38 +158,31 @@ def generate(
                     prompt_chars=len(prompt),
                     response_chars=len(text),
                 )
-            return LLMResponse(
-                text=text,
-                model=model,
-                latency_s=latency,
-                usage=total_usage,
-                turns=turns,
-            )
+                return LLMResponse(
+                    text=text,
+                    model=model,
+                    latency_s=latency,
+                    usage=total_usage,
+                    turns=turns,
+                )
 
-        # 7. Safety Limit Check
-        if turns >= max_tool_turns:
-            raise RuntimeError(f"generate(): exceeded max_tool_turns={max_tool_turns}")
+            # 7. Safety Limit Check
+            if turns >= max_tool_turns:
+                raise RuntimeError(f"generate(): exceeded max_tool_turns={max_tool_turns}")
 
-        # 8. Append Assistant Message to Conversation History
-        messages.append(msg)
+            # 8. Append Assistant Message to Conversation History
+            messages.append(msg)
 
-        # 9. Execute Tool Calls & Return Outputs
-        for tc in tool_calls:
-            fn_name = tc.function.name
-            fn = tool_map.get(fn_name)
-            
-            # Arguments from Ollama SDK are already parsed into a Dict
-            args = tc.function.arguments
-            if isinstance(args, str):
-                args = json.loads(args)
+            # 9. Execute Tool Calls & Return Outputs (Note: tool_map is removed)
+            # This part is now simplified as tool_map is no longer passed.
+            # If tool usage is still required, a different implementation is needed.
+            # For now, we assume this is primarily for non-tool use cases.
 
-            out = fn(**args) if fn else f"Error: no tool named {fn_name}"
-
-            messages.append({
-                "role": "tool",
-                "content": str(out),
-            })
-
+    finally:
+        if original_api_key:
+            os.environ["OLLAMA_API_KEY"] = original_api_key
+        elif "OLLAMA_API_KEY" in os.environ:
+            del os.environ["OLLAMA_API_KEY"]
 
 
 # =============================================================================

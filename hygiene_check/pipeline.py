@@ -134,7 +134,7 @@ def main(argv: list[str] | None = None) -> int:
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
 
     cfg = load_config(args.config)
-    if args.model:
+    if args.model and "providers" not in cfg.get("llm", {}):
         cfg.setdefault("llm", {})["model"] = args.model
     if args.max_calls is not None:
         cfg.setdefault("llm", {})["max_calls_per_run"] = args.max_calls
@@ -264,6 +264,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n[pipeline] pausing further LLM calls: {reason}")
         print("[pipeline] work completed so far will still be written to report.json/alert_payload.json")
 
+    llm_providers = cfg["llm"].get("providers", [cfg["llm"]])
+    current_provider_index = 0
+
     # ---- Investigate EVERY case: two-stage per-row/per-case flow
     evidences = []
     for idx, case in enumerate(to_investigate, 1):
@@ -305,34 +308,44 @@ def main(argv: list[str] | None = None) -> int:
             max_retries = cfg.get("llm", {}).get("retries", 2) + 1
             for attempt in range(max_retries):
                 try:
+                    if current_provider_index >= len(llm_providers):
+                        checkpoint_and_bail("all LLM providers exhausted")
+                        break
+                    
+                    provider_cfg = llm_providers[current_provider_index]
+
                     budget.spend(2)  # one extraction call + one validation call
 
                     extraction = extract_columns(
-                        item["row_data"], item["evidence"], candidate_xpaths,
-                        case["dataset"], cfg["llm"],
+                        item["row_data"], item["evidence"], candidate_xpaths, case["dataset"],
+                        {**cfg["llm"], **provider_cfg} # Merge provider-specific config
                     )
 
                     verdict = validate_holistically(
-                        case, extraction, cfg["llm"],
+                        case, extraction, {**cfg["llm"], **provider_cfg}
                     )
 
                     row_verdicts.append({
                         "row_data": item["row_data"],
                         "extraction": extraction,
                         "verdict": verdict.model_dump(),
-                        "model": cfg["llm"]["model"],
+                        "model": provider_cfg["model"],
                     })
                     print(f"  -> {verdict.cause} (true_positive={verdict.true_positive}, "
                           f"confidence={verdict.confidence:.0%})")
                     break  # Success, exit retry loop
 
                 except BudgetExceeded as exc:
-                    checkpoint_and_bail(exc.reason)
+                    checkpoint_and_bail(str(exc))
                     break # Do not retry on budget exceeded
                 except Exception as exc:
                     if is_rate_limit_error(exc):
-                        checkpoint_and_bail(f"rate limit / quota error from provider: {exc}")
-                        break # Do not retry on rate limit
+                        print(f"  -> provider failed: {exc}. Switching to next provider.")
+                        current_provider_index += 1
+                        if current_provider_index >= len(llm_providers):
+                            checkpoint_and_bail("all LLM providers failed or were rate-limited")
+                            break
+                        continue # Retry with the next provider immediately
 
                     print(f"  -> investigation failed on attempt {attempt + 1}/{max_retries}: {exc}")
                     if attempt + 1 == max_retries:
@@ -341,7 +354,7 @@ def main(argv: list[str] | None = None) -> int:
                             "row_data": item["row_data"],
                             "extraction": None,
                             "verdict": {"error": str(exc)},
-                            "model": cfg["llm"]["model"],
+                            "model": provider_cfg.get("model"),
                         })
                         print(f"  -> investigation failed for one row after {max_retries} attempts: {exc}")
 
@@ -409,7 +422,7 @@ def main(argv: list[str] | None = None) -> int:
             "total_cases": len(all_cases_combined),
             "investigated": len(to_investigate) if not args.no_llm else 0,
             "escalations": len(escalated),
-            "llm_model": cfg["llm"]["model"] if not args.no_llm else None,
+            "llm_model": cfg["llm"].get("providers", [{}])[0].get("model") if not args.no_llm else None,
             "run_id": run_id,
         }
     }
@@ -460,7 +473,7 @@ def main(argv: list[str] | None = None) -> int:
         } for c in all_cases_combined if not c["escalation_reasons"]],
         "date": date,
         "hour_range": hour_range,
-        "llm_model": cfg["llm"]["model"] if not args.no_llm else None,
+        "llm_model": cfg["llm"].get("providers", [{}])[0].get("model") if not args.no_llm else None,
         "run_id": run_id,
     }
     (out_dir / "alert_payload.json").write_text(json.dumps(payload, indent=2, default=str))
