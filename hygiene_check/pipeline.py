@@ -477,13 +477,6 @@ def main(argv: list[str] | None = None) -> int:
         "run_id": run_id,
     }
     (out_dir / "alert_payload.json").write_text(json.dumps(payload, indent=2, default=str))
-    if not payload["alerts"]:
-        print(f"\n[pipeline] no escalations to report for {date} {hour_range} "
-              f"(see {out_dir / 'report.json'} for full case details)")
-        sys.exit(0)
-
-
-
 
     email_html = render_email_html(payload=payload)
 
@@ -497,12 +490,16 @@ def main(argv: list[str] | None = None) -> int:
 
     email_config = cfg.get("email", {})
     recipients = email_config.get("recipients", [])
-    if recipients and args.send_email:
-        mail.send_mailer(sender='partner', recipient=recipients, body=email_html)
-        print(f"Email sent successfully to {recipients}")
-    elif recipients:
-        print(f"[pipeline] email.html written to {EMAIL_FILE_PATH} but not sent "
-              f"(pass --send-email to actually mail {recipients})")
+    if payload["alerts"]:
+        if  recipients and args.send_email:
+            mail.send_mailer(sender='partner', recipient=recipients, body=email_html)
+            print(f"Email sent successfully to {recipients}")
+        elif recipients:
+            print(f"[pipeline] email.html written to {EMAIL_FILE_PATH} but not sent "
+                f"(pass --send-email to actually mail {recipients})")
+    else:
+        print(f"\n[pipeline] no escalations to report for {date} {hour_range} "
+              f"(see {out_dir / 'report.json'} for full case details)")
 
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(json.dumps(state, indent=2))
